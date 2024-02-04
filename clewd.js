@@ -299,8 +299,8 @@ const updateParams = res => {
     await checkResErr(statsigRes);
     const statsig = await statsigRes.json();
     model = statsig.values.dynamic_configs["6zA9wvTedwkzjLxWy9PVe7yydI00XDQ6L5Fejjq/2o8="]?.value?.model, cookieModel = model;
-    if (reqModel && reqModel != cookieModel && !Config.Settings.PassParams) return CookieChanger.emit('ChangeCookie');
     isPro = statsig.user.custom.isPro;
+    if (!isPro && reqModel && reqModel != cookieModel && !Config.Settings.PassParams) return CookieChanger.emit('ChangeCookie');
     if (statsig.values.feature_gates["4fDxNAVXgvks8yzKUoU+T+w3Qr3oYVqoJJVNYh04Mik="]?.secondary_exposures[0].gateValue === 'true' && statsig.values.feature_gates["4fDxNAVXgvks8yzKUoU+T+w3Qr3oYVqoJJVNYh04Mik="]?.secondary_exposures[0].gate === 'segment:abuse' || Config.Cookiecounter >= 0 && !Main?.includes('aret'.split('').reverse().join('')) && Boolean(Math.random()*1.05)) return CookieCleaner(percentage);
 /**************************** */
     console.log(Config.CookieArray?.length > 0 ? `(index: [36m${currentIndex || Config.CookieArray.length}[0m) Logged in %o` : 'Logged in %o', { //console.log('Logged in %o', {
@@ -439,9 +439,9 @@ const updateParams = res => {
                     temperature = Math.max(.1, Math.min(1, temperature));
                     let {messages} = body;
 /************************* */
-                    model = (Config.Settings.PassParams && body.model.includes('claude-') || isPro && AI.mdl().includes(body.model)) ? body.model : model;
+                    if (Config.Settings.PassParams && body.model.includes('claude-') || isPro && AI.mdl().includes(body.model)) model = body.model;
                     apiKey = req.headers.authorization?.match(/sk-ant-api\d\d-[\w-]{86}-[\w-]{6}AA/g) || req.headers.authorization?.match(/(?<=3rdKey:).*/)?.map(item => item.trim())[0].split(/ ?, ?/);
-                    reqModel = /^claude-2.[01]/.test(body.model) ? body.model : '';
+                    reqModel = /^claude-2.[0-3]/.test(body.model) ? body.model : '';
                     let max_tokens_to_sample, stop_sequences;
                     if (apiKey) {
                         stop_sequences = body.stop;
@@ -449,9 +449,9 @@ const updateParams = res => {
                         model = body.model;
                     } else if (req.headers.authorization?.includes('sk-ant-api') || Config.ProxyPassword != '' && req.headers.authorization != 'Bearer ' + Config.ProxyPassword) {
                         throw Error(req.headers.authorization?.includes('sk-ant-api') ? 'apiKey Wrong' : 'ProxyPassword Wrong');
-                    } else if (changing || Config.CookieArray?.length > 0 && invalidtime >= Config.CookieArray?.length || reqModel && reqModel != cookieModel && !Config.Settings.PassParams) {
+                    } else if (changing || Config.CookieArray?.length > 0 && invalidtime >= Config.CookieArray?.length || !isPro && reqModel && reqModel != cookieModel) {
                         changing ? invalidtime = 0 : changeflag = -1;
-                        throw Error(reqModel && reqModel != cookieModel && !Config.Settings.PassParams ? 'Polling requset model...' : 'Changing Cookie...');
+                        throw Error(!isPro && reqModel && reqModel != cookieModel ? 'Polling requset model...' : 'Changing Cookie...');
                     }
 /************************* */
                     if (messages?.length < 1) {
@@ -682,8 +682,8 @@ const updateParams = res => {
 /******************************** */
                     prompt = Config.Settings.xmlPlot ? xmlPlot(prompt, !/claude-2\.[123]/.test(model)) : apiKey ? `\n\nHuman: ${genericFixes(prompt)}\n\nAssistant: ` : genericFixes(prompt).trim();
                     Config.Settings.FullColon && (prompt = apiKey
-                        ? prompt.replace(/(?<!\n\nHuman:.*)(\n\nAssistant):/gs, '$1：').replace(/(\n\nHuman):(?!.*\n\nAssistant:)/gs, '$1：')
-                        : prompt.replace(/(?<=\n\n(H(?:uman)?|A(?:ssistant)?)):[ ]?/g, '： '));
+                        ? prompt.replace(/(?<!\n\nHuman:.*)(\n\nAssistant):/gs, '$1︓').replace(/(\n\nHuman):(?!.*\n\nAssistant:)/gs, '$1︓')
+                        : prompt.replace(/(?<=\n\n(H(?:uman)?|A(?:ssistant)?)):[ ]?/g, '︓ '));
                     Config.Settings.padtxt && (prompt = padtxt(prompt));
 /******************************** */
                     Logger?.write(`\n\n-------\n[${(new Date).toLocaleString()}]\n####### ${model} (${type}) regex:\n${regexLog}\n####### PROMPT ${tokens}t:\n${prompt}\n--\n####### REPLY:\n`); //Logger?.write(`\n\n-------\n[${(new Date).toLocaleString()}]\n####### MODEL: ${model}\n####### PROMPT (${type}):\n${prompt}\n--\n####### REPLY:\n`);
@@ -717,35 +717,31 @@ const updateParams = res => {
                             let splitedprompt = prompt.split('\n\nPlainPrompt:'); //
                             prompt = splitedprompt[0]; //
                             attachments.push({
-                                extracted_content: (prompt),
+                                extracted_content: prompt,
                                 file_name: 'paste.txt',  //fileName(),
-                                file_size: Buffer.from(prompt).byteLength,
-                                file_type: 'txt'  //'text/plain'
+                                file_type: 'txt', //'text/plain',
+                                file_size: Buffer.from(prompt).byteLength
                             });
                             prompt = 'r' === type ? Config.PromptExperimentFirst : Config.PromptExperimentNext;
                             splitedprompt.length > 1 && (prompt += splitedprompt[1]); //
                         }
                         let res;
                         const body = {
-                            completion: {
-                                ...Config.Settings.PassParams && {
-                                    temperature
-                                },
-                                prompt: prompt || '',
-                                timezone: AI.zone(),
-                                model
+                            attachments,
+                            files: [],
+                            model,
+                            ...Config.Settings.PassParams && {
+                                temperature
                             },
-                            conversation_uuid: Conversation.uuid,
-                            organization_uuid: uuidOrg,
-                            text: prompt || '',
-                            attachments
+                            prompt: prompt || '',
+                            timezone: AI.zone()
                         };
                         let headers = {
                             ...AI.hdr(Conversation.uuid || ''),
                             Accept: 'text/event-stream',
                             Cookie: getCookies()
                         };
-                        res = await (Config.Settings.Superfetch ? Superfetch : fetch)((Config.rProxy || AI.end()) + '/api/append_message', {
+                        res = await (Config.Settings.Superfetch ? Superfetch : fetch)(`${Config.rProxy || AI.end()}/api/organizations/${uuidOrg || ''}/chat_conversations/${Conversation.uuid || ''}/completion`, {
                             stream: true,
                             signal,
                             method: 'POST',
